@@ -1,0 +1,34 @@
+# =============================================================================
+# .gitignore — Kafka CDC Lab
+# =============================================================================
+
+# --- Biến môi trường (chứa password) ---
+# .env được COMMIT có chủ đích (chứa giá trị mặc định cho lab).
+# Nếu bạn dùng môi trường production, tạo file .env.local và KHÔNG commit nó.
+.env.local
+.env.production
+.env.*.local
+
+# --- Docker volumes được export ---
+*.tar
+*.tar.gz
+
+# --- Logs ---
+*.log
+logs/
+
+# --- IDE & Editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Custom connector JARs (tải về thủ công, không cần commit) ---
+connectors/*.jar
+
+# --- Kết quả thực hành của sinh viên (tuỳ chọn) ---
+# lab-results/
+# student-notes/

@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafka CLI Cheat Sheet — CDC Lab</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700&display=swap');
+
+  :root {
+    --bg:        #0f1117;
+    --surface:   #161b27;
+    --surface2:  #1e2535;
+    --border:    #2a3347;
+    --text:      #e2e8f0;
+    --muted:     #7c8fad;
+    --accent:    #4f8ef7;
+    --accent2:   #38e8b4;
+    --accent3:   #f7c94f;
+    --accent4:   #f76f6f;
+    --accent5:   #c084fc;
+    --code-bg:   #0a0d14;
+    --prompt:    #38e8b4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Sora', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* ---- LAYOUT ---- */
+  .page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 3rem;
+  }
+
+  /* ---- HEADER ---- */
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-left h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+  .header-left h1 span { color: var(--accent2); }
+  .header-left p { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 6px;
+    margin-top: 8px;
+    border: 1px solid;
+  }
+  .badge-blue   { background: #1a2a4a; border-color: #2a4a7a; color: #7ab8f7; }
+  .badge-green  { background: #0d2e22; border-color: #1a5e40; color: #38e8b4; }
+  .badge-amber  { background: #2e2200; border-color: #5e4500; color: #f7c94f; }
+
+  .env-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    min-width: 260px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+  }
+  .env-box .env-title { color: var(--muted); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; font-family: 'Sora', sans-serif; }
+  .env-row { display: flex; gap: 8px; margin-bottom: 3px; }
+  .env-key { color: var(--accent3); }
+  .env-val { color: var(--accent2); }
+
+  /* ---- GRID ---- */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 1000px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 620px)  { .grid { grid-template-columns: 1fr; } }
+
+  /* ---- CARDS ---- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-icon {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .card-title { font-size: 13px; font-weight: 600; }
+  .card-sub   { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  /* icon colors */
+  .ic-blue   { background: #1a2d4f; color: #4f8ef7; }
+  .ic-green  { background: #0d2e22; color: #38e8b4; }
+  .ic-amber  { background: #2e2400; color: #f7c94f; }
+  .ic-red    { background: #2e0f0f; color: #f76f6f; }
+  .ic-purple { background: #1e1035; color: #c084fc; }
+  .ic-teal   { background: #0a2022; color: #2dd4bf; }
+
+  /* ---- COMMANDS ---- */
+  .cmd-list { padding: 10px 0; }
+
+  .cmd-item {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cmd-item:last-child { border-bottom: none; }
+
+  .cmd-desc {
+    color: var(--muted);
+    font-size: 11px;
+    margin-bottom: 5px;
+    font-family: 'Sora', sans-serif;
+  }
+
+  .cmd-block {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 7px 11px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    word-break: break-all;
+    position: relative;
+  }
+
+  .prompt { color: var(--prompt); user-select: none; }
+  .cmd    { color: #93c5fd; }
+  .flag   { color: var(--accent3); }
+  .val    { color: #f0abfc; }
+  .cmt    { color: #4a5568; font-style: italic; }
+  .kw     { color: #f76f6f; }
+
+  .cmd-item.has-note .note {
+    margin-top: 5px;
+    font-size: 10.5px;
+    color: var(--muted);
+    padding-left: 4px;
+    border-left: 2px solid var(--border);
+  }
+  .note b { color: var(--accent3); font-weight: 600; }
+
+  /* ---- SECTION spanning full width ---- */
+  .span-full {
+    grid-column: 1 / -1;
+  }
+
+  /* ---- FOOTER ---- */
+  .footer {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .footer code {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--surface);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--accent2);
+  }
+
+  /* ---- PRINT ---- */
+  @media print {
+    body { background: #fff; color: #111; font-size: 11px; }
+    :root {
+      --bg: #fff; --surface: #f8f9fa; --surface2: #f0f2f5;
+      --border: #dee2e6; --text: #212529; --muted: #6c757d;
+      --code-bg: #f3f4f6; --prompt: #0d6e56;
+    }
+    .page { padding: 1rem; }
+    .card { break-inside: avoid; }
+    .grid { gap: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <h1>Kafka CLI <span>Cheat Sheet</span></h1>
+      <p>CDC Hands-on Lab · Các lệnh chạy bên trong container <code style="font-family:monospace;font-size:11px;background:var(--surface);padding:2px 6px;border-radius:4px;color:var(--accent3)">kafka</code></p>
+      <div style="margin-top:6px">
+        <span class="badge badge-blue">Kafka 7.7.1</span>
+        <span class="badge badge-green">KRaft mode</span>
+        <span class="badge badge-amber">Debezium 2.7</span>
+      </div>
+    </div>
+    <div class="env-box">
+      <div class="env-title">Thông số kết nối</div>
+      <div class="env-row"><span class="env-key">BOOTSTRAP</span><span class="env-val">kafka:29092</span></div>
+      <div class="env-row"><span class="env-key">CONNECT  </span><span class="env-val">http://kafka-connect:8083</span></div>
+      <div class="env-row"><span class="env-key">PG HOST  </span><span class="env-val">postgres:5432</span></div>
+      <div class="env-row"><span class="env-key">PG DB    </span><span class="env-val">labdb / labuser</span></div>
+    </div>
+  </div>
+
+  <!-- GRID -->
+  <div class="grid">
+
+    <!-- 1. TOPICS -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon ic-blue">📋</div>
+        <div>
+          <div class="card-title">Topics</div>
+          <div class="card-sub">Tạo · Liệt kê · Xem · Xoá</div>
+        </div>
+      </div>
+      <div class="cmd-list">
+
+        <div class="cmd-item">
+          <div class="cmd-desc">Liệt kê tất cả topics</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-topics \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--list</span>
+          </div>
+        </div>
+
+        <div class="cmd-item">
+          <div class="cmd-desc">Tạo topic mới</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-topics \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--create</span> <span class="flag">--topic</span> <span class="val">my-topic</span> \<br>
+&nbsp;&nbsp;<span class="flag">--partitions</span> <span class="val">3</span> \<br>
+&nbsp;&nbsp;<span class="flag">--replication-factor</span> <span class="val">1</span>
+          </div>
+        </div>
+
+        <div class="cmd-item has-note">
+          <div class="cmd-desc">Xem chi tiết một topic</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-topics \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--describe</span> \<br>
+&nbsp;&nbsp;<span class="flag">--topic</span> <span class="val">cdc_lab.shop.customers</span>
+          </div>
+          <div class="note">Hiển thị số partition, replication factor, leader</div>
+        </div>
+
+        <div class="cmd-item">
+          <div class="cmd-desc">Xoá topic</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-topics \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--delete</span> <span class="flag">--topic</span> <span class="val">my-topic</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 2. PRODUCER -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon ic-green">📤</div>
+        <div>
+          <div class="card-title">Producer</div>
+          <div class="card-sub">Gửi message vào topic</div>
+        </div>
+      </div>
+      <div class="cmd-list">
+
+        <div class="cmd-item has-note">
+          <div class="cmd-desc">Gửi message thủ công (interactive)</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> <span class="flag">-it</span> kafka \<br>
+&nbsp;&nbsp;kafka-console-producer \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--topic</span> <span class="val">my-topic</span>
+          </div>
+          <div class="note">Gõ message → Enter gửi. <b>Ctrl+C</b> để thoát.</div>
+        </div>
+
+        <div class="cmd-item has-note">
+          <div class="cmd-desc">Gửi message có key</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> <span class="flag">-it</span> kafka \<br>
+&nbsp;&nbsp;kafka-console-producer \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--topic</span> <span class="val">my-topic</span> \<br>
+&nbsp;&nbsp;<span class="flag">--property</span> <span class="val">parse.key=true</span> \<br>
+&nbsp;&nbsp;<span class="flag">--property</span> <span class="val">key.separator=:</span>
+          </div>
+          <div class="note">Nhập dạng <b>key:value</b> mỗi dòng</div>
+        </div>
+
+        <div class="cmd-item">
+          <div class="cmd-desc">Pipe file vào topic</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="kw">cat</span> data.json | \<br>
+&nbsp;&nbsp;<span class="cmd">docker exec</span> <span class="flag">-i</span> kafka \<br>
+&nbsp;&nbsp;kafka-console-producer \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--topic</span> <span class="val">my-topic</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 3. CONSUMER -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon ic-amber">📥</div>
+        <div>
+          <div class="card-title">Consumer</div>
+          <div class="card-sub">Đọc message từ topic</div>
+        </div>
+      </div>
+      <div class="cmd-list">
+
+        <div class="cmd-item has-note">
+          <div class="cmd-desc">Đọc từ đầu (toàn bộ history)</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-console-consumer \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--topic</span> <span class="val">cdc_lab.shop.customers</span> \<br>
+&nbsp;&nbsp;<span class="flag">--from-beginning</span>
+          </div>
+          <div class="note">Đọc toàn bộ message đã có. <b>Ctrl+C</b> để dừng.</div>
+        </div>
+
+        <div class="cmd-item has-note">
+          <div class="cmd-desc">Đọc kèm key và timestamp</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-console-consumer \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--topic</span> <span class="val">cdc_lab.shop.orders</span> \<br>
+&nbsp;&nbsp;<span class="flag">--from-beginning</span> \<br>
+&nbsp;&nbsp;<span class="flag">--property</span> <span class="val">print.key=true</span> \<br>
+&nbsp;&nbsp;<span class="flag">--property</span> <span class="val">print.timestamp=true</span>
+          </div>
+          <div class="note">Output: <b>Timestamp\tKey\tValue</b></div>
+        </div>
+
+        <div class="cmd-item has-note">
+          <div class="cmd-desc">Giới hạn số message đọc</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-console-consumer \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--topic</span> <span class="val">my-topic</span> \<br>
+&nbsp;&nbsp;<span class="flag">--from-beginning</span> \<br>
+&nbsp;&nbsp;<span class="flag">--max-messages</span> <span class="val">10</span>
+          </div>
+          <div class="note">Đọc đúng <b>10 message</b> rồi tự thoát</div>
+        </div>
+
+        <div class="cmd-item has-note">
+          <div class="cmd-desc">Đọc với consumer group</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-console-consumer \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--topic</span> <span class="val">my-topic</span> \<br>
+&nbsp;&nbsp;<span class="flag">--group</span> <span class="val">lab-consumer-group</span>
+          </div>
+          <div class="note">Offset được lưu → chạy lại tiếp tục từ chỗ cũ</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 4. CONSUMER GROUPS -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon ic-purple">👥</div>
+        <div>
+          <div class="card-title">Consumer Groups</div>
+          <div class="card-sub">Quản lý group · Xem lag</div>
+        </div>
+      </div>
+      <div class="cmd-list">
+
+        <div class="cmd-item">
+          <div class="cmd-desc">Liệt kê tất cả consumer groups</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-consumer-groups \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--list</span>
+          </div>
+        </div>
+
+        <div class="cmd-item has-note">
+          <div class="cmd-desc">Xem lag của một group</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-consumer-groups \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--describe</span> \<br>
+&nbsp;&nbsp;<span class="flag">--group</span> <span class="val">lab-consumer-group</span>
+          </div>
+          <div class="note">Cột <b>LAG</b>: số message chưa xử lý. LAG=0 là đang bắt kịp.</div>
+        </div>
+
+        <div class="cmd-item has-note">
+          <div class="cmd-desc">Reset offset về đầu</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-consumer-groups \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--group</span> <span class="val">lab-consumer-group</span> \<br>
+&nbsp;&nbsp;<span class="flag">--topic</span> <span class="val">my-topic</span> \<br>
+&nbsp;&nbsp;<span class="flag">--reset-offsets</span> \<br>
+&nbsp;&nbsp;<span class="flag">--to-earliest</span> \<br>
+&nbsp;&nbsp;<span class="flag">--execute</span>
+          </div>
+          <div class="note"><b>Lưu ý:</b> group phải đang không có consumer nào chạy</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 5. KAFKA CONNECT REST API -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon ic-teal">🔌</div>
+        <div>
+          <div class="card-title">Kafka Connect REST API</div>
+          <div class="card-sub">Quản lý Debezium connectors</div>
+        </div>
+      </div>
+      <div class="cmd-list">
+
+        <div class="cmd-item">
+          <div class="cmd-desc">Liệt kê connectors đang chạy</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="kw">curl</span> <span class="flag">-s</span> \<br>
+&nbsp;&nbsp;<span class="val">http://localhost:8083/connectors</span>
+          </div>
+        </div>
+
+        <div class="cmd-item">
+          <div class="cmd-desc">Xem trạng thái connector</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="kw">curl</span> <span class="flag">-s</span> \<br>
+&nbsp;&nbsp;<span class="val">http://localhost:8083/connectors/</span>\<br>
+&nbsp;&nbsp;<span class="val">postgres-cdc-connector/status</span>
+          </div>
+        </div>
+
+        <div class="cmd-item">
+          <div class="cmd-desc">Đăng ký connector từ file JSON</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="kw">curl</span> <span class="flag">-X POST</span> \<br>
+&nbsp;&nbsp;<span class="flag">-H</span> <span class="val">"Content-Type: application/json"</span> \<br>
+&nbsp;&nbsp;<span class="flag">-d @</span><span class="val">connectors/postgres-cdc-connector.json</span> \<br>
+&nbsp;&nbsp;<span class="val">http://localhost:8083/connectors</span>
+          </div>
+        </div>
+
+        <div class="cmd-item">
+          <div class="cmd-desc">Restart connector bị lỗi</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="kw">curl</span> <span class="flag">-X POST</span> \<br>
+&nbsp;&nbsp;<span class="val">http://localhost:8083/connectors/</span>\<br>
+&nbsp;&nbsp;<span class="val">postgres-cdc-connector/restart</span>
+          </div>
+        </div>
+
+        <div class="cmd-item">
+          <div class="cmd-desc">Xoá connector</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="kw">curl</span> <span class="flag">-X DELETE</span> \<br>
+&nbsp;&nbsp;<span class="val">http://localhost:8083/connectors/</span>\<br>
+&nbsp;&nbsp;<span class="val">postgres-cdc-connector</span>
+          </div>
+        </div>
+
+        <div class="cmd-item">
+          <div class="cmd-desc">Liệt kê connector plugins đã cài</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="kw">curl</span> <span class="flag">-s</span> \<br>
+&nbsp;&nbsp;<span class="val">http://localhost:8083/connector-plugins</span> \<br>
+&nbsp;&nbsp;| <span class="kw">python3</span> <span class="flag">-m</span> json.tool
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 6. CLUSTER INFO -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon ic-red">📊</div>
+        <div>
+          <div class="card-title">Cluster & Config</div>
+          <div class="card-sub">Thông tin broker · Cấu hình</div>
+        </div>
+      </div>
+      <div class="cmd-list">
+
+        <div class="cmd-item">
+          <div class="cmd-desc">Xem thông tin broker</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-broker-api-versions \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span>
+          </div>
+        </div>
+
+        <div class="cmd-item">
+          <div class="cmd-desc">Xem metadata cluster</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-metadata-quorum \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--command-config</span> /dev/null \<br>
+&nbsp;&nbsp;describe <span class="flag">--status</span>
+          </div>
+        </div>
+
+        <div class="cmd-item has-note">
+          <div class="cmd-desc">Xem config của topic</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-configs \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--entity-type</span> <span class="val">topics</span> \<br>
+&nbsp;&nbsp;<span class="flag">--entity-name</span> <span class="val">my-topic</span> \<br>
+&nbsp;&nbsp;<span class="flag">--describe</span>
+          </div>
+          <div class="note">Xem retention, cleanup policy, v.v.</div>
+        </div>
+
+        <div class="cmd-item has-note">
+          <div class="cmd-desc">Xem offset hiện tại của topic</div>
+          <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> kafka \<br>
+&nbsp;&nbsp;kafka-get-offsets \<br>
+&nbsp;&nbsp;<span class="flag">--bootstrap-server</span> <span class="val">kafka:29092</span> \<br>
+&nbsp;&nbsp;<span class="flag">--topic</span> <span class="val">cdc_lab.shop.products</span>
+          </div>
+          <div class="note">Kết quả: <b>topic:partition:offset</b></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 7. POSTGRESQL CDC — span full width -->
+    <div class="card span-full">
+      <div class="card-header">
+        <div class="card-icon ic-blue">🐘</div>
+        <div>
+          <div class="card-title">PostgreSQL — Thao tác CDC</div>
+          <div class="card-sub">Kết nối, kiểm tra replication, thực hành INSERT / UPDATE / DELETE để trigger CDC events</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0">
+
+        <div style="border-right:1px solid var(--border)">
+          <div class="cmd-item">
+            <div class="cmd-desc">Kết nối vào PostgreSQL</div>
+            <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker exec</span> <span class="flag">-it</span> postgres \<br>
+&nbsp;&nbsp;psql <span class="flag">-U</span> <span class="val">labuser</span> <span class="flag">-d</span> <span class="val">labdb</span>
+            </div>
+          </div>
+          <div class="cmd-item">
+            <div class="cmd-desc">Kiểm tra WAL level (phải là logical)</div>
+            <div class="cmd-block">
+<span class="kw">SHOW</span> wal_level;<br>
+<span class="cmt">-- kết quả: logical ✓</span>
+            </div>
+          </div>
+          <div class="cmd-item">
+            <div class="cmd-desc">Xem replication slots</div>
+            <div class="cmd-block">
+<span class="kw">SELECT</span> slot_name, active<br>
+<span class="kw">FROM</span> pg_replication_slots;
+            </div>
+          </div>
+        </div>
+
+        <div style="border-right:1px solid var(--border)">
+          <div class="cmd-item">
+            <div class="cmd-desc">INSERT → CDC op: "c" (create)</div>
+            <div class="cmd-block">
+<span class="kw">INSERT INTO</span> shop.customers<br>
+&nbsp;&nbsp;(full_name, email, phone)<br>
+<span class="kw">VALUES</span><br>
+&nbsp;&nbsp;(<span class="val">'Nguyen Van X'</span>,<br>
+&nbsp;&nbsp;&nbsp;<span class="val">'x@example.com'</span>,<br>
+&nbsp;&nbsp;&nbsp;<span class="val">'0900000001'</span>);
+            </div>
+          </div>
+          <div class="cmd-item">
+            <div class="cmd-desc">UPDATE → CDC op: "u" (update)</div>
+            <div class="cmd-block">
+<span class="kw">UPDATE</span> shop.products<br>
+<span class="kw">SET</span> price = <span class="val">25000000</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;stock = <span class="val">8</span><br>
+<span class="kw">WHERE</span> id = <span class="val">1</span>;
+            </div>
+          </div>
+          <div class="cmd-item">
+            <div class="cmd-desc">DELETE → CDC op: "d" (delete)</div>
+            <div class="cmd-block">
+<span class="kw">DELETE FROM</span> shop.customers<br>
+<span class="kw">WHERE</span> email = <span class="val">'x@example.com'</span>;
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="cmd-item has-note">
+            <div class="cmd-desc">Xem publications (Debezium tạo tự động)</div>
+            <div class="cmd-block">
+<span class="kw">SELECT</span> pubname, puballtables<br>
+<span class="kw">FROM</span> pg_publication;
+            </div>
+            <div class="note">Debezium tạo publication <b>debezium</b> khi kết nối lần đầu</div>
+          </div>
+          <div class="cmd-item has-note">
+            <div class="cmd-desc">Xoá replication slot (nếu bị kẹt)</div>
+            <div class="cmd-block">
+<span class="kw">SELECT</span> pg_drop_replication_slot(<br>
+&nbsp;&nbsp;<span class="val">'debezium_lab_slot'</span><br>
+);
+            </div>
+            <div class="note">Dùng khi connector bị lỗi và cần đăng ký lại từ đầu</div>
+          </div>
+          <div class="cmd-item">
+            <div class="cmd-desc">Xem tổng số bản ghi mỗi bảng</div>
+            <div class="cmd-block">
+<span class="kw">SELECT</span> <span class="val">'customers'</span>,<br>
+&nbsp;&nbsp;<span class="kw">COUNT</span>(*) <span class="kw">FROM</span> shop.customers<br>
+<span class="kw">UNION ALL SELECT</span> <span class="val">'products'</span>,<br>
+&nbsp;&nbsp;<span class="kw">COUNT</span>(*) <span class="kw">FROM</span> shop.products;
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 8. DOCKER SHORTCUTS -->
+    <div class="card span-full">
+      <div class="card-header">
+        <div class="card-icon ic-green">🐳</div>
+        <div>
+          <div class="card-title">Docker Compose — Lệnh quản lý lab</div>
+          <div class="card-sub">Chạy từ thư mục gốc của repo</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0">
+
+        <div style="border-right:1px solid var(--border)">
+          <div class="cmd-item">
+            <div class="cmd-desc">Khởi động toàn bộ stack</div>
+            <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker compose</span> up <span class="flag">-d</span>
+            </div>
+          </div>
+          <div class="cmd-item">
+            <div class="cmd-desc">Xem trạng thái containers</div>
+            <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker compose</span> ps
+            </div>
+          </div>
+        </div>
+
+        <div style="border-right:1px solid var(--border)">
+          <div class="cmd-item">
+            <div class="cmd-desc">Xem log realtime</div>
+            <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker compose</span> logs <span class="flag">-f</span><br>
+<span class="cmt"># Hoặc 1 service cụ thể:</span><br>
+<span class="prompt">$</span> <span class="cmd">docker compose</span> logs <span class="flag">-f</span> kafka
+            </div>
+          </div>
+          <div class="cmd-item">
+            <div class="cmd-desc">Restart một service</div>
+            <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker compose</span> restart \<br>
+&nbsp;&nbsp;kafka-connect
+            </div>
+          </div>
+        </div>
+
+        <div style="border-right:1px solid var(--border)">
+          <div class="cmd-item">
+            <div class="cmd-desc">Dừng — giữ nguyên data</div>
+            <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker compose</span> down
+            </div>
+          </div>
+          <div class="cmd-item has-note">
+            <div class="cmd-desc">Reset hoàn toàn (xoá data)</div>
+            <div class="cmd-block">
+<span class="prompt">$</span> <span class="cmd">docker compose</span> down <span class="flag">-v</span>
+            </div>
+            <div class="note"><b>Cảnh báo:</b> mất toàn bộ data Kafka + PostgreSQL</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="cmd-item">
+            <div class="cmd-desc">Kiểm tra sức khoẻ hệ thống</div>
+            <div class="cmd-block">
+<span class="prompt">$</span> bash scripts/check-status.sh
+            </div>
+          </div>
+          <div class="cmd-item">
+            <div class="cmd-desc">Đăng ký / cập nhật connector</div>
+            <div class="cmd-block">
+<span class="prompt">$</span> bash scripts/register-connector.sh
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- /grid -->
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div>
+      Kafka CDC Lab · Tất cả lệnh Kafka CLI chạy bên trong container
+      <code>kafka</code> (internal host: <code>kafka:29092</code>) ·
+      curl gọi từ máy host (<code>localhost:8083</code>)
+    </div>
+    <div>
+      Kafka UI: <code>http://localhost:8080</code>
+    </div>
+  </div>
+
+</div><!-- /page -->
+</body>
+</html>

@@ -1,0 +1,195 @@
+# =============================================================================
+# KAFKA CDC HANDS-ON LAB — docker-compose.yml
+# =============================================================================
+# Stack:
+#   - Kafka (KRaft mode, không ZooKeeper)
+#   - Kafka UI  (giao diện web quản lý)
+#   - PostgreSQL (Debezium image, logical replication bật sẵn)
+#   - Kafka Connect (distributed, tích hợp Debezium connectors)
+#
+# Khởi động: docker compose up -d
+# Dừng:      docker compose down
+# Reset all:  docker compose down -v   ← XOÁ toàn bộ data volumes
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # KAFKA BROKER — KRaft (không cần ZooKeeper)
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: confluentinc/cp-kafka:7.7.1
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "${KAFKA_BROKER_PORT:-9092}:9092"
+      - "${KAFKA_CONTROLLER_PORT:-9093}:9093"
+    environment:
+      # --- KRaft identity ---
+      KAFKA_NODE_ID: ${KAFKA_NODE_ID:-1}
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "${KAFKA_NODE_ID:-1}@kafka:${KAFKA_CONTROLLER_PORT:-9093}"
+
+      # --- Listeners ---
+      # PLAINTEXT_HOST: expose ra máy host (dùng cho client bên ngoài Docker)
+      # PLAINTEXT:      giao tiếp nội bộ giữa các container
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://kafka:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:${KAFKA_BROKER_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      # --- Cluster & topics ---
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: ${KAFKA_AUTO_CREATE_TOPICS:-true}
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+      # --- Retention ---
+      KAFKA_LOG_RETENTION_HOURS: ${KAFKA_LOG_RETENTION_HOURS:-168}
+      KAFKA_LOG_SEGMENT_BYTES: ${KAFKA_LOG_SEGMENT_BYTES:-1073741824}
+
+      # --- JVM ---
+      KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xms512m -Xmx1g}
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - cdc-lab-net
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka:29092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # KAFKA UI — Giao diện web quản lý Kafka
+  # ---------------------------------------------------------------------------
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    hostname: kafka-ui
+    ports:
+      - "${KAFKA_UI_PORT:-8080}:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: cdc-lab-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: debezium-connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:${CONNECT_PORT:-8083}
+      DYNAMIC_CONFIG_ENABLED: true
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - cdc-lab-net
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # POSTGRESQL — Debezium image (WAL level = logical, bật sẵn, không cần config)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: debezium/postgres:16
+    container_name: postgres
+    hostname: postgres
+    ports:
+      - "${POSTGRES_HOST_PORT:-5434}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-labdb}
+      POSTGRES_USER: ${POSTGRES_USER:-labuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-labpassword}
+    command:
+      # Các tham số này được Debezium image cấu hình sẵn, để đây cho rõ ràng:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_replication_slots=10"
+      - "-c"
+      - "max_wal_senders=10"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro  # chạy SQL khi khởi tạo lần đầu
+    networks:
+      - cdc-lab-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-labuser} -d ${POSTGRES_DB:-labdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # KAFKA CONNECT — Distributed mode + Debezium connector plugins
+  # ---------------------------------------------------------------------------
+  kafka-connect:
+    image: debezium/connect:2.7
+    container_name: kafka-connect
+    hostname: kafka-connect
+    ports:
+      - "${CONNECT_PORT:-8083}:8083"
+    environment:
+      # --- Bootstrap & group ---
+      BOOTSTRAP_SERVERS: kafka:29092
+      GROUP_ID: ${CONNECT_GROUP_ID:-kafka-connect-lab-cluster}
+
+      # --- Internal topics (lưu trạng thái connector) ---
+      CONFIG_STORAGE_TOPIC: ${CONNECT_CONFIG_TOPIC:-connect-configs}
+      OFFSET_STORAGE_TOPIC: ${CONNECT_OFFSET_TOPIC:-connect-offsets}
+      STATUS_STORAGE_TOPIC: ${CONNECT_STATUS_TOPIC:-connect-status}
+      CONFIG_STORAGE_REPLICATION_FACTOR: ${CONNECT_CONFIG_REPLICATION_FACTOR:-1}
+      OFFSET_STORAGE_REPLICATION_FACTOR: ${CONNECT_OFFSET_REPLICATION_FACTOR:-1}
+      STATUS_STORAGE_REPLICATION_FACTOR: ${CONNECT_STATUS_REPLICATION_FACTOR:-1}
+
+      # --- Converters ---
+      KEY_CONVERTER: ${CONNECT_KEY_CONVERTER:-org.apache.kafka.connect.json.JsonConverter}
+      VALUE_CONVERTER: ${CONNECT_VALUE_CONVERTER:-org.apache.kafka.connect.json.JsonConverter}
+      KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+
+      # --- JVM ---
+      KAFKA_HEAP_OPTS: ${CONNECT_HEAP_OPTS:--Xms256m -Xmx512m}
+
+      # --- Kết nối tới PostgreSQL (dùng cho connector template) ---
+      # Các biến này không được Connect tự dùng, nhưng giúp sinh viên tham chiếu
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-labdb}
+      POSTGRES_USER: ${POSTGRES_USER:-labuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-labpassword}
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./connectors:/kafka/connect/custom-connectors  # thư mục cho connector JAR tùy chỉnh (nếu cần)
+    networks:
+      - cdc-lab-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8083/connectors || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+    restart: unless-stopped
+
+# =============================================================================
+# VOLUMES — Persistent storage
+# =============================================================================
+volumes:
+  kafka-data:
+    name: cdc-lab-kafka-data
+  postgres-data:
+    name: cdc-lab-postgres-data
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  cdc-lab-net:
+    name: cdc-lab-network
+    driver: bridge

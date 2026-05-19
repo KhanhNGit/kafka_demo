@@ -1,0 +1,36 @@
+{
+  "name": "postgres-cdc-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "labuser",
+    "database.password": "labpassword",
+    "database.dbname": "labdb",
+    "database.server.name": "cdc_lab",
+
+    "topic.prefix": "cdc_lab",
+
+    "schema.include.list": "shop",
+    "table.include.list": "shop.customers,shop.products,shop.orders",
+
+    "plugin.name": "pgoutput",
+    "publication.autocreate.mode": "filtered",
+    "slot.name": "debezium_lab_slot",
+
+    "snapshot.mode": "initial",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter.schemas.enable": "false",
+
+    "heartbeat.interval.ms": "10000",
+
+    "errors.retry.timeout": "60000",
+    "errors.log.enable": "true",
+    "errors.log.include.messages": "true"
+  }
+}
